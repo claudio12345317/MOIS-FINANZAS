@@ -196,8 +196,23 @@
 
   .panel{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:22px 24px; margin-bottom:22px;}
   .panel-table{padding:0; overflow:hidden;}
+  .mov-cards{display:none;}
+  .mov-card{
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+    padding:14px 16px; margin-bottom:10px;
+  }
+  .mov-card-top{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
+  .mov-card-desc{font-weight:600; font-size:13.5px;}
+  .mov-card-meta{font-size:12px; color:var(--muted); margin-top:3px;}
   .panel h3{font-size:15px; font-weight:600; margin:0 0 16px; font-family:'Work Sans'; color:var(--heading);}
   .charts-row{display:grid; grid-template-columns:1.3fr 1fr; gap:18px;}
+  .budget-alerts{display:flex; flex-direction:column; gap:8px; margin-bottom:20px;}
+  .alert-pill{
+    all:unset; cursor:pointer; display:block; width:100%; box-sizing:border-box;
+    padding:11px 16px; border-radius:var(--radius); font-size:13px; font-weight:500;
+  }
+  .alert-pill.alert-over{background:var(--red-bg); color:var(--red);}
+  .alert-pill.alert-close{background:var(--gold-soft); color:var(--heading);}
   .usd-summary{padding:16px 24px;}
   .usd-summary h3{margin:0 0 10px;}
   .usd-summary-row{display:flex; gap:28px; flex-wrap:wrap; font-size:13.5px; color:var(--muted);}
@@ -261,6 +276,9 @@
   /* ---------- Auth screen ---------- */
   #authScreen{position:fixed; inset:0; background:var(--bg); display:none; align-items:center; justify-content:center; z-index:90; padding:20px;}
   #authScreen.show{display:flex;}
+  #lockScreen{position:fixed; inset:0; background:var(--bg); display:none; align-items:center; justify-content:center; z-index:95; padding:20px;}
+  #lockScreen.show{display:flex;}
+  #lockPin{font-size:22px; letter-spacing:10px; text-align:center;}
   .auth-card{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); width:380px; max-width:100%; padding:32px 28px;}
   .auth-card h1{font-size:22px; margin:0 0 4px; color:var(--heading);}
   .auth-card p.sub{color:var(--muted); font-size:13px; margin:0 0 22px;}
@@ -327,6 +345,8 @@
     #main{padding:78px 16px 90px;}
     .panel-table{overflow-x:auto; -webkit-overflow-scrolling:touch;}
     .panel-table table{min-width:640px;}
+    .mov-table-wrap{display:none;}
+    .mov-cards{display:block;}
     .kpi-row{grid-template-columns:1fr 1fr;}
     .kpi.hero{grid-column:span 2;}
     .charts-row{grid-template-columns:1fr;}
@@ -360,6 +380,21 @@
   </div>
 </div>
 
+<div id="lockScreen">
+  <div class="auth-card">
+    <h1>Bloqueada</h1>
+    <p class="sub">Ingresá el PIN de este dispositivo para continuar.</p>
+    <div class="auth-error" id="lockError"></div>
+    <div class="field">
+      <label>PIN</label>
+      <input type="password" id="lockPin" inputmode="numeric" maxlength="4" autocomplete="off">
+    </div>
+    <div class="auth-actions">
+      <button class="btn btn-primary" id="btnUnlock">Desbloquear</button>
+    </div>
+  </div>
+</div>
+
 <div id="app" style="display:none;">
   <aside id="sidebar">
     <div class="brand">
@@ -379,6 +414,7 @@
     </nav>
     <div class="foot">
       <p id="userEmailLabel">Conectado</p>
+      <button id="btnPin" onclick="document.body.classList.remove('mobile-menu-open'); openPinForm()">Configurar PIN</button>
       <button onclick="document.body.classList.remove('mobile-menu-open'); exportData()">Exportar copia (.json)</button>
       <button onclick="document.body.classList.remove('mobile-menu-open'); document.getElementById('importFile').click()">Importar copia (.json)</button>
       <button onclick="document.body.classList.remove('mobile-menu-open'); doLogout()">Cerrar sesión</button>
@@ -541,11 +577,127 @@ function toggleTheme(){
 }
 applyThemeButtonLabel();
 
+/* ============================================================
+   BLOQUEO CON PIN (candado simple del dispositivo, no cifra los datos)
+   ============================================================ */
+async function hashPin(pin){
+  const enc = new TextEncoder().encode('mf-pin-salt-'+pin);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+function getPinHash(){ try{ return localStorage.getItem('mf-pin-hash'); }catch(e){ return null; } }
+
+function applyPinMenuLabel(){
+  const btn = document.getElementById('btnPin');
+  if(btn) btn.textContent = getPinHash() ? 'Cambiar o quitar PIN' : 'Configurar PIN';
+}
+applyPinMenuLabel();
+
+function showLockScreenIfNeeded(){
+  if(getPinHash()){
+    document.getElementById('lockScreen').classList.add('show');
+  }
+}
+
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState==='visible' && currentUser) showLockScreenIfNeeded();
+});
+
+document.getElementById('btnUnlock').addEventListener('click', unlockWithPin);
+document.getElementById('lockPin').addEventListener('keydown', e=>{ if(e.key==='Enter') unlockWithPin(); });
+
+async function unlockWithPin(){
+  const pin = document.getElementById('lockPin').value;
+  const err = document.getElementById('lockError');
+  if(pin.length!==4){ err.textContent='El PIN tiene 4 dígitos.'; err.classList.add('show'); return; }
+  const hash = await hashPin(pin);
+  if(hash===getPinHash()){
+    document.getElementById('lockScreen').classList.remove('show');
+    document.getElementById('lockPin').value='';
+    err.classList.remove('show');
+  } else {
+    err.textContent='PIN incorrecto.';
+    err.classList.add('show');
+    document.getElementById('lockPin').value='';
+  }
+}
+
+function openPinForm(){
+  const tienePin = !!getPinHash();
+  document.getElementById('modalBody').innerHTML = `
+    <h3>${tienePin?'Cambiar o quitar PIN':'Configurar PIN'}</h3>
+    <p style="color:var(--muted); font-size:12.5px; margin-top:-8px;">Es un candado simple para este dispositivo — no reemplaza tu contraseña ni cifra los datos guardados.</p>
+    <div class="auth-error" id="pinFormError"></div>
+    <div class="form-grid">
+      ${tienePin?`
+      <div class="field full">
+        <label>PIN actual</label>
+        <input type="password" id="pPinActual" inputmode="numeric" maxlength="4" style="letter-spacing:6px;">
+      </div>`:''}
+      <div class="field">
+        <label>Nuevo PIN (4 dígitos)</label>
+        <input type="password" id="pPinNuevo" inputmode="numeric" maxlength="4" style="letter-spacing:6px;">
+      </div>
+      <div class="field">
+        <label>Confirmar nuevo PIN</label>
+        <input type="password" id="pPinConfirmar" inputmode="numeric" maxlength="4" style="letter-spacing:6px;">
+      </div>
+    </div>
+    <div class="modal-actions" style="justify-content:space-between;">
+      ${tienePin?`<button class="btn-danger-text" onclick="removePin()">Quitar PIN</button>`:'<span></span>'}
+      <div style="display:flex; gap:10px;">
+        <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="savePinForm()">Guardar</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('overlay').classList.add('show');
+}
+
+async function savePinForm(){
+  const tienePin = !!getPinHash();
+  const err = document.getElementById('pinFormError');
+  err.classList.remove('show');
+  if(tienePin){
+    const actual = document.getElementById('pPinActual').value;
+    if(await hashPin(actual) !== getPinHash()){
+      err.textContent='El PIN actual no es correcto.'; err.classList.add('show'); return;
+    }
+  }
+  const nuevo = document.getElementById('pPinNuevo').value;
+  const confirmar = document.getElementById('pPinConfirmar').value;
+  if(nuevo.length!==4 || !/^\d{4}$/.test(nuevo)){
+    err.textContent='El nuevo PIN tiene que ser de 4 números.'; err.classList.add('show'); return;
+  }
+  if(nuevo!==confirmar){
+    err.textContent='Los PIN no coinciden.'; err.classList.add('show'); return;
+  }
+  localStorage.setItem('mf-pin-hash', await hashPin(nuevo));
+  applyPinMenuLabel();
+  closeModal();
+  toast('PIN guardado');
+}
+
+async function removePin(){
+  const actual = document.getElementById('pPinActual')?.value || '';
+  if(await hashPin(actual) !== getPinHash()){
+    const err = document.getElementById('pinFormError');
+    err.textContent='El PIN actual no es correcto.'; err.classList.add('show'); return;
+  }
+  if(!confirm('¿Quitar el PIN de este dispositivo?')) return;
+  localStorage.removeItem('mf-pin-hash');
+  applyPinMenuLabel();
+  closeModal();
+  toast('PIN eliminado');
+}
+
 auth.onAuthStateChanged(user=>{
   currentUser = user;
   if(user){
     document.getElementById('authScreen').classList.remove('show');
     document.getElementById('userEmailLabel').textContent = user.email;
+    showLockScreenIfNeeded();
     listenToData();
   } else {
     if(unsubscribeDoc){ unsubscribeDoc(); unsubscribeDoc = null; }
@@ -788,11 +940,25 @@ function monthOptions(selected){
   return sorted.map(k=>`<option value="${k}" ${k===selected?'selected':''}>${ymLabelFull(k)}</option>`).join('');
 }
 
+function budgetAlerts(ym){
+  const catTotals = categoryTotalsForMonth(ym);
+  const over = [], close = [];
+  state.categoriasEgreso.forEach(c=>{
+    const presup = Number(state.presupuesto[c])||0;
+    if(presup<=0) return;
+    const pct = (catTotals[c]||0) / presup;
+    if(pct>1) over.push(c);
+    else if(pct>=0.8) close.push(c);
+  });
+  return {over, close};
+}
+
 function viewResumen(){
   const t = totalsForMonth(selectedResumenYM);
   const yearKeys = last12MonthKeys();
   let yearBal=0;
   yearKeys.forEach(k=>{ if(k.startsWith(selectedResumenYM.slice(0,4))) yearBal += totalsForMonth(k).bal; });
+  const alerts = budgetAlerts(selectedResumenYM);
 
   return `
     <div class="page-head">
@@ -805,6 +971,18 @@ function viewResumen(){
         <select id="selResumenMes">${monthOptions(selectedResumenYM)}</select>
       </div>
     </div>
+
+    ${(alerts.over.length || alerts.close.length) ? `
+    <div class="budget-alerts">
+      ${alerts.over.length ? `
+        <button class="alert-pill alert-over" onclick="document.querySelector('[data-tab=presupuesto]').click()">
+          Pasaste el presupuesto en ${alerts.over.length===1?'1 categoría':alerts.over.length+' categorías'}: ${alerts.over.map(escapeHtml).join(', ')}
+        </button>` : ''}
+      ${alerts.close.length ? `
+        <button class="alert-pill alert-close" onclick="document.querySelector('[data-tab=presupuesto]').click()">
+          Cerca del límite en ${alerts.close.length===1?'1 categoría':alerts.close.length+' categorías'}: ${alerts.close.map(escapeHtml).join(', ')}
+        </button>` : ''}
+    </div>` : ''}
 
     <div class="kpi-row">
       <div class="kpi hero">
@@ -1306,13 +1484,15 @@ function viewMovimientos(){
       </div>
     </div>
 
-    <div class="panel panel-table">
-      ${rows.length===0 ? `
+    ${rows.length===0 ? `
+      <div class="panel">
         <div class="empty-state">
           <span class="serif">Todavía no hay movimientos acá</span>
           Agregá el primero con el botón "Nuevo movimiento".
         </div>
-      ` : `
+      </div>
+    ` : `
+    <div class="panel panel-table mov-table-wrap">
       <table>
         <thead><tr>
           <th>Fecha</th><th>Tipo</th><th>Categoría</th><th>Descripción</th><th>Medio</th><th style="text-align:right;">Monto</th><th></th>
@@ -1329,6 +1509,7 @@ function viewMovimientos(){
               <td>
                 <div class="row-actions">
                   <button class="btn-link" onclick="openMovForm('${m.id}')">Editar</button>
+                  <button class="btn-link" onclick="duplicateMov('${m.id}')">Duplicar</button>
                   <button class="btn-danger-text" onclick="deleteMov('${m.id}')">Eliminar</button>
                 </div>
               </td>
@@ -1336,8 +1517,26 @@ function viewMovimientos(){
           `).join('')}
         </tbody>
       </table>
-      `}
     </div>
+
+    <div class="mov-cards">
+      ${rows.map(m=>`
+        <div class="mov-card">
+          <div class="mov-card-top">
+            <span class="badge ${m.tipo==='Ingreso'?'badge-ingreso':'badge-egreso'}">${m.tipo}</span>
+            <span class="num ${m.tipo==='Ingreso'?'amount-in':'amount-out'}" style="font-size:16px;">${m.tipo==='Ingreso'?'+':'-'}${fmt(m.monto, m.moneda)}</span>
+          </div>
+          <div class="mov-card-desc">${escapeHtml(m.descripcion)||escapeHtml(m.categoria)}</div>
+          <div class="mov-card-meta">${escapeHtml(m.categoria)} · ${escapeHtml(m.medio)} · ${formatFecha(m.fecha)}</div>
+          <div class="row-actions" style="margin-top:10px;">
+            <button class="btn-link" onclick="openMovForm('${m.id}')">Editar</button>
+            <button class="btn-link" onclick="duplicateMov('${m.id}')">Duplicar</button>
+            <button class="btn-danger-text" onclick="deleteMov('${m.id}')">Eliminar</button>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+    `}
   `;
 }
 
@@ -1359,6 +1558,20 @@ function deleteMov(id){
   saveData();
   renderTab('movimientos');
   toast('Movimiento eliminado');
+}
+
+function duplicateMov(id){
+  const orig = state.movimientos.find(m=>m.id===id);
+  if(!orig) return;
+  openMovForm();
+  document.getElementById('mTipo').value = orig.tipo;
+  document.getElementById('mTipo').dispatchEvent(new Event('change'));
+  document.getElementById('mCategoria').value = orig.categoria;
+  document.getElementById('mDescripcion').value = orig.descripcion || '';
+  document.getElementById('mMedio').value = orig.medio;
+  document.getElementById('mMoneda').value = orig.moneda || 'UYU';
+  document.getElementById('mMonto').value = orig.monto;
+  document.getElementById('mNotas').value = orig.notas || '';
 }
 
 function openMovForm(id){
