@@ -26,6 +26,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- Firebase (sincroniza tus datos entre el teléfono y la computadora) -->
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
@@ -197,6 +198,10 @@
   .panel-table{padding:0; overflow:hidden;}
   .panel h3{font-size:15px; font-weight:600; margin:0 0 16px; font-family:'Work Sans'; color:var(--heading);}
   .charts-row{display:grid; grid-template-columns:1.3fr 1fr; gap:18px;}
+  .usd-summary{padding:16px 24px;}
+  .usd-summary h3{margin:0 0 10px;}
+  .usd-summary-row{display:flex; gap:28px; flex-wrap:wrap; font-size:13.5px; color:var(--muted);}
+  .usd-summary-row b{font-family:'Fraunces', serif; font-size:16px; font-weight:600; margin-left:6px;}
   .chart-wrap{position:relative; height:280px;}
 
   /* ---------- Tables ---------- */
@@ -421,6 +426,8 @@ let state = {
   mediosPago: ["Efectivo","Débito","Crédito","Transferencia"],
   movimientos: [],
   presupuesto: {}, // { "Alquiler": 18000, ... }
+  recurrentes: [], // [{id, tipo, categoria, descripcion, medio, monto, moneda, dia, activo}]
+  metas: [], // [{id, nombre, objetivo, moneda, aportes:[{id,fecha,monto}]}]
 };
 
 function seedIfEmpty(){
@@ -572,6 +579,7 @@ function listenToData(){
       document.getElementById('app').style.display = 'flex';
       renderTab(currentTab || 'resumen');
       first = false;
+      generarRecurrentesFaltantes();
     } else {
       renderTab(currentTab);
     }
@@ -607,9 +615,10 @@ function toast(msg){
   setTimeout(()=>t.classList.remove('show'), 2200);
 }
 
-function fmt(n){
+function fmt(n, moneda){
   n = Number(n)||0;
-  return '$ ' + n.toLocaleString('es-UY', {maximumFractionDigits:0});
+  const symbol = moneda==='USD' ? 'US$ ' : '$ ';
+  return symbol + n.toLocaleString('es-UY', {maximumFractionDigits:0});
 }
 
 /* ============================================================
@@ -699,20 +708,23 @@ function renderTab(tab){
 function monthKey(dateStr){ return dateStr.slice(0,7); } // "2026-09"
 
 function totalsForMonth(ym){
-  let ing=0, egr=0;
+  let ing=0, egr=0, ingUSD=0, egrUSD=0;
   state.movimientos.forEach(m=>{
     if(monthKey(m.fecha)!==ym) return;
-    if(m.tipo==='Ingreso') ing+=Number(m.monto);
-    else egr+=Number(m.monto);
+    const esUSD = m.moneda==='USD';
+    if(m.tipo==='Ingreso'){ if(esUSD) ingUSD+=Number(m.monto); else ing+=Number(m.monto); }
+    else{ if(esUSD) egrUSD+=Number(m.monto); else egr+=Number(m.monto); }
   });
-  return {ing, egr, bal: ing-egr};
+  return {ing, egr, bal: ing-egr, ingUSD, egrUSD, balUSD: ingUSD-egrUSD};
 }
 
 function categoryTotalsForMonth(ym){
+  // El presupuesto y los gráficos por categoría están en pesos: los
+  // egresos cargados en USD no se suman acá (ver resumen aparte en dólares).
   const totals = {};
   state.categoriasEgreso.forEach(c=>totals[c]=0);
   state.movimientos.forEach(m=>{
-    if(m.tipo!=='Egreso' || monthKey(m.fecha)!==ym) return;
+    if(m.tipo!=='Egreso' || monthKey(m.fecha)!==ym || m.moneda==='USD') return;
     totals[m.categoria] = (totals[m.categoria]||0) + Number(m.monto);
   });
   return totals;
@@ -750,7 +762,7 @@ function categoryTotalsForYear(year){
   const totals = {};
   state.categoriasEgreso.forEach(c=>totals[c]=0);
   state.movimientos.forEach(m=>{
-    if(m.tipo!=='Egreso' || m.fecha.slice(0,4)!==String(year)) return;
+    if(m.tipo!=='Egreso' || m.fecha.slice(0,4)!==String(year) || m.moneda==='USD') return;
     totals[m.categoria] = (totals[m.categoria]||0) + Number(m.monto);
   });
   return totals;
@@ -813,6 +825,16 @@ function viewResumen(){
       </div>
     </div>
 
+    ${(t.ingUSD || t.egrUSD) ? `
+    <div class="panel usd-summary">
+      <h3>En dólares — ${ymLabel(selectedResumenYM)}</h3>
+      <div class="usd-summary-row">
+        <span>Ingresos <b class="amount-in">${fmt(t.ingUSD,'USD')}</b></span>
+        <span>Egresos <b class="amount-out">${fmt(t.egrUSD,'USD')}</b></span>
+        <span>Balance <b class="${t.balUSD>=0?'amount-in':'amount-out'}">${fmt(t.balUSD,'USD')}</b></span>
+      </div>
+    </div>` : ''}
+
     <div class="charts-row">
       <div class="panel">
         <h3>Ingresos vs egresos — últimos 12 meses</h3>
@@ -823,7 +845,163 @@ function viewResumen(){
         <div class="chart-wrap"><canvas id="chartPie"></canvas></div>
       </div>
     </div>
+
+    ${viewMetasPanel()}
   `;
+}
+
+/* ============================================================
+   METAS DE AHORRO
+   ============================================================ */
+function metaAhorrado(meta){
+  return (meta.aportes||[]).reduce((s,a)=>s+Number(a.monto),0);
+}
+
+function viewMetasPanel(){
+  return `
+    <div class="panel">
+      <div class="page-head" style="margin-bottom:16px;">
+        <div>
+          <h3 style="margin:0;">Metas de ahorro</h3>
+          <p style="margin:4px 0 0; color:var(--muted); font-size:13px;">Definí un objetivo y sumá aportes cuando ahorres.</p>
+        </div>
+        <button class="btn btn-primary" onclick="openMetaForm()">+ Nueva meta</button>
+      </div>
+      ${state.metas.length===0 ? `
+        <div class="empty-state" style="padding:24px 20px;">Todavía no tenés metas de ahorro cargadas.</div>
+      ` : state.metas.map(meta=>{
+        const ahorrado = metaAhorrado(meta);
+        const objetivo = Number(meta.objetivo)||0;
+        const pct = objetivo>0 ? Math.min(ahorrado/objetivo,1)*100 : 0;
+        const color = pct>=100 ? 'var(--green)' : 'var(--gold)';
+        const aportes = (meta.aportes||[]).slice().sort((a,b)=>b.fecha.localeCompare(a.fecha));
+        return `
+        <div style="padding:16px 0; border-bottom:1px solid var(--border);">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+            <div>
+              <div style="font-weight:600;">${escapeHtml(meta.nombre)}</div>
+              <div style="font-size:12.5px; color:var(--muted); margin-top:2px;">${fmt(ahorrado, meta.moneda)} de ${fmt(objetivo, meta.moneda)} · ${Math.round(pct)}%</div>
+            </div>
+            <div class="row-actions">
+              <button class="btn-link" onclick="openAporteForm('${meta.id}')">+ Aporte</button>
+              <button class="btn-link" onclick="openMetaForm('${meta.id}')">Editar</button>
+              <button class="btn-danger-text" onclick="deleteMeta('${meta.id}')">Eliminar</button>
+            </div>
+          </div>
+          <div class="prog-bar" style="margin-top:10px;"><div class="prog-fill" style="width:${pct}%; background:${color};"></div></div>
+          ${aportes.length ? `
+            <div style="margin-top:10px; display:flex; flex-direction:column; gap:4px;">
+              ${aportes.slice(0,5).map(a=>`
+                <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--muted);">
+                  <span>${formatFecha(a.fecha)}</span>
+                  <span class="num">${fmt(a.monto, meta.moneda)} <button class="btn-danger-text" style="margin-left:8px;" onclick="deleteAporte('${meta.id}','${a.id}')">Quitar</button></span>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+}
+
+function openMetaForm(id){
+  const editing = id ? state.metas.find(m=>m.id===id) : null;
+  document.getElementById('modalBody').innerHTML = `
+    <h3>${editing?'Editar meta':'Nueva meta de ahorro'}</h3>
+    <div class="form-grid">
+      <div class="field full">
+        <label>Nombre</label>
+        <input type="text" id="gNombre" value="${editing?escapeHtml(editing.nombre):''}" placeholder="Ej: Vacaciones, Fondo de emergencia">
+      </div>
+      <div class="field">
+        <label>Moneda</label>
+        <select id="gMoneda">
+          <option value="UYU" ${(!editing||editing.moneda!=='USD')?'selected':''}>$ Pesos (UYU)</option>
+          <option value="USD" ${editing&&editing.moneda==='USD'?'selected':''}>US$ Dólares (USD)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Objetivo</label>
+        <input type="number" id="gObjetivo" value="${editing?editing.objetivo:''}" min="0" step="1">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveMeta('${editing?editing.id:''}')">${editing?'Guardar cambios':'Crear meta'}</button>
+    </div>
+  `;
+  document.getElementById('overlay').classList.add('show');
+}
+
+function saveMeta(id){
+  const nombre = document.getElementById('gNombre').value.trim();
+  const objetivo = parseFloat(document.getElementById('gObjetivo').value);
+  if(!nombre){ toast('Ponele un nombre a la meta'); return; }
+  if(!objetivo || objetivo<=0){ toast('Ingresá un objetivo válido'); return; }
+  const moneda = document.getElementById('gMoneda').value;
+  if(id){
+    const meta = state.metas.find(m=>m.id===id);
+    Object.assign(meta, {nombre, objetivo, moneda});
+  } else {
+    state.metas.push({id:cryptoId(), nombre, objetivo, moneda, aportes:[]});
+  }
+  saveData();
+  closeModal();
+  renderTab('resumen');
+  toast(id?'Meta actualizada':'Meta creada');
+}
+
+function deleteMeta(id){
+  if(!confirm('¿Eliminar esta meta de ahorro? Se pierde el historial de aportes.')) return;
+  state.metas = state.metas.filter(m=>m.id!==id);
+  saveData();
+  renderTab('resumen');
+  toast('Meta eliminada');
+}
+
+function openAporteForm(metaId){
+  const meta = state.metas.find(m=>m.id===metaId);
+  document.getElementById('modalBody').innerHTML = `
+    <h3>Nuevo aporte — ${escapeHtml(meta.nombre)}</h3>
+    <div class="form-grid">
+      <div class="field">
+        <label>Fecha</label>
+        <input type="date" id="aFecha" value="${new Date().toISOString().slice(0,10)}">
+      </div>
+      <div class="field">
+        <label>Monto (${meta.moneda==='USD'?'US$':'$'})</label>
+        <input type="number" id="aMonto" min="0" step="1">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveAporte('${metaId}')">Agregar aporte</button>
+    </div>
+  `;
+  document.getElementById('overlay').classList.add('show');
+}
+
+function saveAporte(metaId){
+  const monto = parseFloat(document.getElementById('aMonto').value);
+  if(!monto || monto<=0){ toast('Ingresá un monto válido'); return; }
+  const fecha = document.getElementById('aFecha').value;
+  const meta = state.metas.find(m=>m.id===metaId);
+  if(!meta.aportes) meta.aportes = [];
+  meta.aportes.push({id:cryptoId(), fecha, monto});
+  saveData();
+  closeModal();
+  renderTab('resumen');
+  toast('Aporte agregado');
+}
+
+function deleteAporte(metaId, aporteId){
+  if(!confirm('¿Quitar este aporte?')) return;
+  const meta = state.metas.find(m=>m.id===metaId);
+  meta.aportes = (meta.aportes||[]).filter(a=>a.id!==aporteId);
+  saveData();
+  renderTab('resumen');
+  toast('Aporte eliminado');
 }
 
 let chartBarInstance=null, chartPieInstance=null;
@@ -1040,7 +1218,7 @@ function generatePDF(ym){
   const movs = state.movimientos.filter(m=>monthKey(m.fecha)===ym).sort((a,b)=>a.fecha.localeCompare(b.fecha));
   const movRows = movs.map(m=>[
     formatFecha(m.fecha), m.tipo, m.categoria, m.descripcion||'—', m.medio,
-    (m.tipo==='Ingreso'?'+ ':'- ')+fmt(m.monto)
+    (m.tipo==='Ingreso'?'+ ':'- ')+fmt(m.monto, m.moneda)
   ]);
 
   doc.autoTable({
@@ -1057,16 +1235,42 @@ function generatePDF(ym){
 }
 
 /* ============================================================
+   EXPORTAR A EXCEL
+   ============================================================ */
+function exportExcel(){
+  const rows = lastMovRows.length ? lastMovRows : state.movimientos;
+  if(rows.length===0){ toast('No hay movimientos para exportar'); return; }
+  const data = rows.slice().sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(m=>({
+    Fecha: formatFecha(m.fecha),
+    Tipo: m.tipo,
+    Categoría: m.categoria,
+    Descripción: m.descripcion || '',
+    Medio: m.medio,
+    Moneda: m.moneda==='USD' ? 'USD' : 'UYU',
+    Monto: Number(m.monto),
+    Notas: m.notas || '',
+  }));
+  const ws = XLSX.utils.json_to_sheet(data);
+  ws['!cols'] = [{wch:11},{wch:9},{wch:22},{wch:30},{wch:13},{wch:8},{wch:12},{wch:26}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Movimientos');
+  XLSX.writeFile(wb, `mis-finanzas-movimientos.xlsx`);
+  toast('Excel descargado');
+}
+
+/* ============================================================
    VISTA: MOVIMIENTOS
    ============================================================ */
 let filtroMes = 'todos', filtroTipo='todos', filtroTexto='';
 
+let lastMovRows = [];
 function viewMovimientos(){
   const keys = [...new Set(state.movimientos.map(m=>monthKey(m.fecha)))].sort().reverse();
   let rows = state.movimientos.slice().sort((a,b)=> b.fecha.localeCompare(a.fecha));
   if(filtroMes!=='todos') rows = rows.filter(m=>monthKey(m.fecha)===filtroMes);
   if(filtroTipo!=='todos') rows = rows.filter(m=>m.tipo===filtroTipo);
   if(filtroTexto.trim()) rows = rows.filter(m => (m.descripcion+' '+m.categoria).toLowerCase().includes(filtroTexto.toLowerCase()));
+  lastMovRows = rows;
 
   return `
     <div class="page-head">
@@ -1074,7 +1278,10 @@ function viewMovimientos(){
         <h2>Movimientos</h2>
         <p>Todo lo que entra y sale, en un solo lugar.</p>
       </div>
-      <button class="btn btn-primary" id="btnNuevo">+ Nuevo movimiento</button>
+      <div style="display:flex; gap:10px;">
+        <button class="btn btn-ghost" onclick="exportExcel()">Exportar a Excel</button>
+        <button class="btn btn-primary" id="btnNuevo">+ Nuevo movimiento</button>
+      </div>
     </div>
 
     <div class="filters-row">
@@ -1118,7 +1325,7 @@ function viewMovimientos(){
               <td>${escapeHtml(m.categoria)}</td>
               <td>${escapeHtml(m.descripcion)||'—'}</td>
               <td>${escapeHtml(m.medio)}</td>
-              <td class="num" style="text-align:right;"><span class="${m.tipo==='Ingreso'?'amount-in':'amount-out'}">${m.tipo==='Ingreso'?'+':'-'}${fmt(m.monto)}</span></td>
+              <td class="num" style="text-align:right;"><span class="${m.tipo==='Ingreso'?'amount-in':'amount-out'}">${m.tipo==='Ingreso'?'+':'-'}${fmt(m.monto, m.moneda)}</span></td>
               <td>
                 <div class="row-actions">
                   <button class="btn-link" onclick="openMovForm('${m.id}')">Editar</button>
@@ -1186,7 +1393,14 @@ function openMovForm(id){
         <select id="mMedio">${state.mediosPago.map(m=>`<option ${editing&&editing.medio===m?'selected':''}>${escapeHtml(m)}</option>`).join('')}</select>
       </div>
       <div class="field">
-        <label>Monto ($UY)</label>
+        <label>Moneda</label>
+        <select id="mMoneda">
+          <option value="UYU" ${(!editing||editing.moneda!=='USD')?'selected':''}>$ Pesos (UYU)</option>
+          <option value="USD" ${editing&&editing.moneda==='USD'?'selected':''}>US$ Dólares (USD)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Monto</label>
         <input type="number" id="mMonto" value="${editing?editing.monto:''}" min="0" step="1">
       </div>
       <div class="field full">
@@ -1218,6 +1432,7 @@ function saveMov(id){
     descripcion: document.getElementById('mDescripcion').value,
     medio: document.getElementById('mMedio').value,
     monto: monto,
+    moneda: document.getElementById('mMoneda').value,
     notas: document.getElementById('mNotas').value,
   };
   if(id){
@@ -1266,7 +1481,7 @@ function viewPresupuesto(){
             const dif = presup-real;
             const pct = presup>0 ? (real/presup) : (real>0?1.3:0);
             const pctDisplay = presup>0 ? Math.round((real/presup)*100)+'%' : (real>0?'—':'0%');
-            const color = pct<=0.8?'#3E6B55':(pct<=1?'#A9803D':'#96412E');
+            const color = pct<=0.8?cssVar('--green'):(pct<=1?'#A9803D':cssVar('--red'));
             return `
               <tr>
                 <td>${escapeHtml(c)}</td>
@@ -1275,7 +1490,7 @@ function viewPresupuesto(){
                     onchange="updateBudget('${c.replace(/'/g,"\\'")}', this.value)">
                 </td>
                 <td class="num" style="text-align:right;">${fmt(real)}</td>
-                <td class="num" style="text-align:right; color:${dif<0?'#96412E':'#3E6B55'}; font-weight:600;">${fmt(dif)}</td>
+                <td class="num" style="text-align:right; color:${dif<0?'var(--red)':'var(--green)'}; font-weight:600;">${fmt(dif)}</td>
                 <td>
                   <div class="prog-bar"><div class="prog-fill" style="width:${Math.min(pct*100,100)}%; background:${color};"></div></div>
                   <div style="font-size:11px; color:var(--muted); margin-top:3px;">${pctDisplay}</div>
@@ -1289,11 +1504,50 @@ function viewPresupuesto(){
             <td>Total</td>
             <td class="num" style="text-align:right;">${fmt(totalPresup)}</td>
             <td class="num" style="text-align:right;">${fmt(totalReal)}</td>
-            <td class="num" style="text-align:right; color:${totalPresup-totalReal<0?'#96412E':'#3E6B55'};">${fmt(totalPresup-totalReal)}</td>
+            <td class="num" style="text-align:right; color:${totalPresup-totalReal<0?'var(--red)':'var(--green)'};">${fmt(totalPresup-totalReal)}</td>
             <td></td>
           </tr>
         </tfoot>
       </table>
+    </div>
+
+    <div class="panel">
+      <div class="page-head" style="margin-bottom:16px;">
+        <div>
+          <h3 style="margin:0;">Gastos e ingresos recurrentes</h3>
+          <p style="margin:4px 0 0; color:var(--muted); font-size:13px;">Se cargan solos cada mes, el día que elijas.</p>
+        </div>
+        <button class="btn btn-primary" id="btnNuevoRecurrente">+ Nuevo recurrente</button>
+      </div>
+      ${state.recurrentes.length===0 ? `
+        <div class="empty-state" style="padding:24px 20px;">Todavía no tenés gastos o ingresos recurrentes cargados.</div>
+      ` : `
+      <div style="overflow-x:auto;">
+      <table>
+        <thead><tr>
+          <th>Día</th><th>Tipo</th><th>Categoría</th><th>Descripción</th><th style="text-align:right;">Monto</th><th>Estado</th><th></th>
+        </tr></thead>
+        <tbody>
+          ${state.recurrentes.map(r=>`
+            <tr>
+              <td class="num">${r.dia}</td>
+              <td><span class="badge ${r.tipo==='Ingreso'?'badge-ingreso':'badge-egreso'}">${r.tipo}</span></td>
+              <td>${escapeHtml(r.categoria)}</td>
+              <td>${escapeHtml(r.descripcion)||'—'}</td>
+              <td class="num" style="text-align:right;">${fmt(r.monto, r.moneda)}</td>
+              <td>${r.activo===false ? '<span style="color:var(--muted);">Pausado</span>' : '<span style="color:var(--green);">Activo</span>'}</td>
+              <td>
+                <div class="row-actions">
+                  <button class="btn-link" onclick="openRecurrenteForm('${r.id}')">Editar</button>
+                  <button class="btn-danger-text" onclick="deleteRecurrente('${r.id}')">Eliminar</button>
+                </div>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      </div>
+      `}
     </div>
   `;
 }
@@ -1303,12 +1557,141 @@ function afterRenderPresupuesto(){
     selectedPresupuestoYM = e.target.value;
     renderTab('presupuesto');
   });
+  document.getElementById('btnNuevoRecurrente').addEventListener('click', ()=>openRecurrenteForm());
 }
 
 function updateBudget(cat, value){
   state.presupuesto[cat] = parseFloat(value)||0;
   saveData();
   renderTab('presupuesto');
+}
+
+/* ============================================================
+   RECURRENTES (se cargan solos cada mes)
+   ============================================================ */
+function daysInMonth(ym){
+  const [y,m] = ym.split('-').map(Number);
+  return new Date(y, m, 0).getDate();
+}
+
+function generarRecurrentesFaltantes(){
+  const ym = currentYM();
+  let creados = 0;
+  state.recurrentes.forEach(r=>{
+    if(r.activo===false) return;
+    const yaExiste = state.movimientos.some(m=>m.recurrenteId===r.id && monthKey(m.fecha)===ym);
+    if(yaExiste) return;
+    const dia = Math.min(r.dia, daysInMonth(ym));
+    state.movimientos.push({
+      id:cryptoId(), recurrenteId:r.id,
+      fecha:`${ym}-${String(dia).padStart(2,'0')}`,
+      tipo:r.tipo, categoria:r.categoria, descripcion:r.descripcion,
+      medio:r.medio, monto:r.monto, moneda:r.moneda||'UYU', notas:'Cargado automáticamente (recurrente)',
+    });
+    creados++;
+  });
+  if(creados>0){
+    saveData();
+    toast(creados===1 ? 'Se cargó 1 movimiento recurrente de este mes' : `Se cargaron ${creados} movimientos recurrentes de este mes`);
+  }
+}
+
+function openRecurrenteForm(id){
+  const editing = id ? state.recurrentes.find(r=>r.id===id) : null;
+  const tipo = editing ? editing.tipo : 'Egreso';
+  const cats = tipo==='Ingreso' ? state.categoriasIngreso : state.categoriasEgreso;
+
+  document.getElementById('modalBody').innerHTML = `
+    <h3>${editing?'Editar recurrente':'Nuevo recurrente'}</h3>
+    <div class="form-grid">
+      <div class="field">
+        <label>Tipo</label>
+        <select id="rTipo">
+          <option value="Egreso" ${tipo==='Egreso'?'selected':''}>Egreso</option>
+          <option value="Ingreso" ${tipo==='Ingreso'?'selected':''}>Ingreso</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Día del mes</label>
+        <input type="number" id="rDia" value="${editing?editing.dia:1}" min="1" max="28">
+      </div>
+      <div class="field full">
+        <label>Categoría</label>
+        <select id="rCategoria">${cats.map(c=>`<option ${editing&&editing.categoria===c?'selected':''}>${escapeHtml(c)}</option>`).join('')}</select>
+      </div>
+      <div class="field full">
+        <label>Descripción</label>
+        <input type="text" id="rDescripcion" value="${editing?escapeHtml(editing.descripcion):''}" placeholder="Ej: Alquiler">
+      </div>
+      <div class="field">
+        <label>Medio de pago</label>
+        <select id="rMedio">${state.mediosPago.map(m=>`<option ${editing&&editing.medio===m?'selected':''}>${escapeHtml(m)}</option>`).join('')}</select>
+      </div>
+      <div class="field">
+        <label>Moneda</label>
+        <select id="rMoneda">
+          <option value="UYU" ${(!editing||editing.moneda!=='USD')?'selected':''}>$ Pesos (UYU)</option>
+          <option value="USD" ${editing&&editing.moneda==='USD'?'selected':''}>US$ Dólares (USD)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Monto</label>
+        <input type="number" id="rMonto" value="${editing?editing.monto:''}" min="0" step="1">
+      </div>
+      <div class="field full">
+        <label style="display:flex; align-items:center; gap:8px; margin-bottom:0;">
+          <input type="checkbox" id="rActivo" style="width:auto;" ${(!editing||editing.activo!==false)?'checked':''}>
+          Activo (se sigue cargando cada mes)
+        </label>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveRecurrente('${editing?editing.id:''}')">${editing?'Guardar cambios':'Agregar'}</button>
+    </div>
+  `;
+  document.getElementById('rTipo').addEventListener('change', (e)=>{
+    const cs = e.target.value==='Ingreso' ? state.categoriasIngreso : state.categoriasEgreso;
+    document.getElementById('rCategoria').innerHTML = cs.map(c=>`<option>${escapeHtml(c)}</option>`).join('');
+  });
+  document.getElementById('overlay').classList.add('show');
+}
+
+function saveRecurrente(id){
+  const monto = parseFloat(document.getElementById('rMonto').value);
+  if(!monto || monto<=0){ toast('Ingresá un monto válido'); return; }
+  let dia = parseInt(document.getElementById('rDia').value, 10);
+  if(!dia || dia<1) dia=1;
+  if(dia>28) dia=28;
+  const data = {
+    tipo: document.getElementById('rTipo').value,
+    categoria: document.getElementById('rCategoria').value,
+    descripcion: document.getElementById('rDescripcion').value,
+    medio: document.getElementById('rMedio').value,
+    moneda: document.getElementById('rMoneda').value,
+    monto: monto,
+    dia: dia,
+    activo: document.getElementById('rActivo').checked,
+  };
+  if(id){
+    const idx = state.recurrentes.findIndex(r=>r.id===id);
+    state.recurrentes[idx] = Object.assign({id}, data);
+  } else {
+    state.recurrentes.push(Object.assign({id:cryptoId()}, data));
+  }
+  saveData();
+  closeModal();
+  generarRecurrentesFaltantes();
+  renderTab('presupuesto');
+  toast(id?'Recurrente actualizado':'Recurrente agregado');
+}
+
+function deleteRecurrente(id){
+  if(!confirm('¿Eliminar este recurrente? Los movimientos ya generados no se borran.')) return;
+  state.recurrentes = state.recurrentes.filter(r=>r.id!==id);
+  saveData();
+  renderTab('presupuesto');
+  toast('Recurrente eliminado');
 }
 
 /* ============================================================
