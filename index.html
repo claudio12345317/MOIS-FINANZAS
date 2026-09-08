@@ -306,7 +306,7 @@
     #app{flex-direction:column;}
     #sidebar{
       width:100%; flex-direction:row; align-items:center; justify-content:space-between;
-      padding:12px 16px; position:fixed; top:0; left:0; right:0; z-index:60;
+      padding:calc(12px + env(safe-area-inset-top)) 16px 12px; position:fixed; top:0; left:0; right:0; z-index:60;
     }
     #sidebar .brand{border:none; padding:0; margin:0;}
     #sidebar .brand span{display:none;}
@@ -330,9 +330,10 @@
     nav.tabs button.active{box-shadow:none; background:rgba(255,255,255,0.1);}
 
     #sidebar .foot{
-      display:none; position:fixed; top:60px; right:12px; z-index:70;
+      display:none; position:absolute; top:100%; right:12px; margin-top:8px; z-index:70;
       background:var(--navy-2); border-radius:var(--radius); padding:16px 18px;
       flex-direction:column; align-items:flex-start; gap:10px; min-width:210px;
+      max-width:calc(100vw - 24px);
       box-shadow:0 10px 30px rgba(0,0,0,0.35);
     }
     #sidebar .foot p{margin:0;}
@@ -342,7 +343,7 @@
       display:block; position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:65;
     }
 
-    #main{padding:78px 16px 90px;}
+    #main{padding:calc(78px + env(safe-area-inset-top)) 16px 90px;}
     .panel-table{overflow-x:auto; -webkit-overflow-scrolling:touch;}
     .panel-table table{min-width:640px;}
     .mov-table-wrap{display:none;}
