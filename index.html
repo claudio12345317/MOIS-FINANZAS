@@ -121,8 +121,17 @@
     border-bottom:1px solid rgba(255,255,255,0.1);
     margin-bottom:18px;
   }
-  #sidebar .brand h1{font-size:20px; font-weight:500; margin:0 0 3px; color:#fff;}
+  #sidebar .brand h1{font-size:20px; font-weight:500; margin:0; color:#fff;}
   #sidebar .brand span{font-size:11.5px; color:#ABAFB5; letter-spacing:.02em;}
+  .brand-row{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:3px;}
+  .theme-toggle-btn{
+    all:unset; cursor:pointer; flex-shrink:0;
+    width:28px; height:28px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:14px; color:#fff; background:rgba(255,255,255,0.08);
+    transition:background .15s;
+  }
+  .theme-toggle-btn:hover{background:rgba(255,255,255,0.16);}
   nav.tabs{display:flex; flex-direction:column; gap:2px; padding:0 12px;}
   nav.tabs button{
     all:unset; cursor:pointer;
@@ -349,7 +358,10 @@
 <div id="app" style="display:none;">
   <aside id="sidebar">
     <div class="brand">
-      <h1>Mis Finanzas</h1>
+      <div class="brand-row">
+        <h1>Mis Finanzas</h1>
+        <button id="btnThemeToggle" class="theme-toggle-btn" onclick="toggleTheme()" aria-label="Cambiar tema" title="Cambiar tema">☀</button>
+      </div>
       <span>Pesos uruguayos · $UY</span>
     </div>
     <button id="btnMobileMenu" class="mobile-menu-btn" onclick="toggleMobileMenu()" aria-label="Más opciones">⋮</button>
@@ -362,7 +374,6 @@
     </nav>
     <div class="foot">
       <p id="userEmailLabel">Conectado</p>
-      <button id="btnThemeToggle" onclick="toggleTheme()">Modo oscuro</button>
       <button onclick="document.body.classList.remove('mobile-menu-open'); exportData()">Exportar copia (.json)</button>
       <button onclick="document.body.classList.remove('mobile-menu-open'); document.getElementById('importFile').click()">Importar copia (.json)</button>
       <button onclick="document.body.classList.remove('mobile-menu-open'); doLogout()">Cerrar sesión</button>
@@ -505,7 +516,10 @@ function toggleMobileMenu(){
 function applyThemeButtonLabel(){
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark' ||
     (!document.documentElement.hasAttribute('data-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  document.getElementById('btnThemeToggle').textContent = isDark ? 'Modo claro' : 'Modo oscuro';
+  const btn = document.getElementById('btnThemeToggle');
+  btn.textContent = isDark ? '☾' : '☀';
+  btn.title = isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro';
+  btn.setAttribute('aria-label', btn.title);
 }
 
 function toggleTheme(){
