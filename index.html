@@ -3,9 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#17212E">
+<meta name="theme-color" content="#101010">
 <title>Mis Finanzas</title>
 <link rel="manifest" href="manifest.json">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Finanzas">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
@@ -17,15 +24,15 @@
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600;700&display=swap');
 
   :root{
-    --bg: #F3F1EC;
+    --bg: #EFEFEF;
     --panel: #FFFFFF;
-    --navy: #17212E;
-    --navy-2: #212C3B;
-    --gold: #A9803D;
-    --gold-soft: #E9DCC3;
+    --navy: #101010;
+    --navy-2: #2A2A2A;
+    --gold: #AEB2B8;
+    --gold-soft: #E4E5E7;
     --ink: #1E222B;
     --muted: #767267;
-    --border: rgba(23,33,46,0.12);
+    --border: rgba(16,16,16,0.12);
     --green: #3E6B55;
     --green-bg: #E7EFE9;
     --red: #96412E;
@@ -60,20 +67,20 @@
     margin-bottom:18px;
   }
   #sidebar .brand h1{font-size:20px; font-weight:500; margin:0 0 3px; color:#fff;}
-  #sidebar .brand span{font-size:11.5px; color:#B9AF9A; letter-spacing:.02em;}
+  #sidebar .brand span{font-size:11.5px; color:#ABAFB5; letter-spacing:.02em;}
   nav.tabs{display:flex; flex-direction:column; gap:2px; padding:0 12px;}
   nav.tabs button{
     all:unset; cursor:pointer;
     padding:10px 12px; border-radius:var(--radius);
-    font-size:14px; color:#CBC6B8;
+    font-size:14px; color:#C9CBCE;
     display:flex; align-items:center; gap:10px;
     transition:background .15s, color .15s;
   }
   nav.tabs button:hover{background:rgba(255,255,255,0.06); color:#fff;}
   nav.tabs button.active{background:var(--navy-2); color:#fff; box-shadow: inset 2px 0 0 var(--gold);}
-  #sidebar .foot{margin-top:auto; padding:0 24px; font-size:11.5px; color:#8B8879;}
+  #sidebar .foot{margin-top:auto; padding:0 24px; font-size:11.5px; color:#8C8E92;}
   #sidebar .foot p{margin:0 0 10px;}
-  #sidebar .foot button{all:unset; cursor:pointer; color:#C7B27F; text-decoration:underline; font-size:11.5px; display:block; margin-bottom:8px;}
+  #sidebar .foot button{all:unset; cursor:pointer; color:#BFC2C6; text-decoration:underline; font-size:11.5px; display:block; margin-bottom:8px;}
 
   /* ---------- Main ---------- */
   #main{flex:1; padding:34px 40px 60px; max-width:1180px;}
@@ -117,7 +124,7 @@
   .kpi .label{font-size:12px; color:var(--muted); margin-bottom:8px;}
   .kpi .value{font-family:'Fraunces', serif; font-size:26px; font-weight:500;}
   .kpi.hero{grid-column:span 2; background:var(--navy); color:#fff; border:none;}
-  .kpi.hero .label{color:#B9AF9A;}
+  .kpi.hero .label{color:#ABAFB5;}
   .kpi.hero .value{font-size:34px; color:#fff;}
   .value.positive{color:var(--green);}
   .value.negative{color:var(--red);}
@@ -151,7 +158,7 @@
 
   /* ---------- Modal ---------- */
   .overlay{
-    position:fixed; inset:0; background:rgba(23,33,46,0.45);
+    position:fixed; inset:0; background:rgba(16,16,16,0.45);
     display:none; align-items:center; justify-content:center; z-index:50;
   }
   .overlay.show{display:flex;}
@@ -685,14 +692,14 @@ function afterRenderResumen(){
       plugins:{ legend:{position:'bottom', labels:{boxWidth:10, font:{family:'Work Sans', size:11}}} },
       scales:{
         x:{ grid:{display:false}, ticks:{font:{family:'Work Sans', size:10.5}} },
-        y:{ grid:{color:'rgba(23,33,46,0.06)'}, ticks:{callback:v=>fmt(v), font:{family:'Work Sans', size:10.5}} }
+        y:{ grid:{color:'rgba(16,16,16,0.06)'}, ticks:{callback:v=>fmt(v), font:{family:'Work Sans', size:10.5}} }
       }
     }
   });
 
   const catTotals = categoryTotalsForMonth(selectedResumenYM);
   const entries = Object.entries(catTotals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
-  const palette = ['#17212E','#A9803D','#3E6B55','#96412E','#6B7A8F','#C7B27F','#5C4B3A','#8B8879','#4A5A6A','#B98B5E','#7A8C6F','#9C6B4F','#5E6B7A','#B0A184'];
+  const palette = ['#101010','#C7C9CC','#4A4A4A','#D6D8DB','#6E7176','#9DA0A5','#2E2E2E','#B4B7BB','#565A5E','#8B8E92','#3A3D42','#A3A6AB','#1D1D1D','#C0C2C6'];
 
   if(chartPieInstance) chartPieInstance.destroy();
   if(entries.length===0){
@@ -776,12 +783,12 @@ function afterRenderGraficos(){
   } else {
     chartMesCategoriaInstance = new Chart(document.getElementById('chartMesCategoria'), {
       type:'bar',
-      data:{ labels:entries.map(e=>e[0]), datasets:[{ label:'Gasto', data:entries.map(e=>e[1]), backgroundColor:'#A9803D', borderRadius:2 }] },
+      data:{ labels:entries.map(e=>e[0]), datasets:[{ label:'Gasto', data:entries.map(e=>e[1]), backgroundColor:'#54575C', borderRadius:2 }] },
       options:{
         indexAxis:'y', responsive:true, maintainAspectRatio:false,
         plugins:{ legend:{display:false} },
         scales:{
-          x:{ grid:{color:'rgba(23,33,46,0.06)'}, ticks:{callback:v=>fmt(v), font:{family:'Work Sans', size:10.5}} },
+          x:{ grid:{color:'rgba(16,16,16,0.06)'}, ticks:{callback:v=>fmt(v), font:{family:'Work Sans', size:10.5}} },
           y:{ grid:{display:false}, ticks:{font:{family:'Work Sans', size:11}} }
         }
       }
@@ -807,7 +814,7 @@ function afterRenderGraficos(){
         legend:{position:'bottom', labels:{boxWidth:10, font:{family:'Work Sans', size:11}}} },
       scales:{
         x:{ grid:{display:false}, ticks:{font:{family:'Work Sans', size:10.5}} },
-        y:{ grid:{color:'rgba(23,33,46,0.06)'}, ticks:{callback:v=>fmt(v), font:{family:'Work Sans', size:10.5}} }
+        y:{ grid:{color:'rgba(16,16,16,0.06)'}, ticks:{callback:v=>fmt(v), font:{family:'Work Sans', size:10.5}} }
       }
     }
   });
@@ -820,8 +827,8 @@ function afterRenderGraficos(){
     type:'line',
     data:{ labels, datasets:[{
       label:'Balance acumulado', data:balAcumSeries,
-      borderColor:'#17212E', backgroundColor:'rgba(169,128,61,0.15)',
-      pointBackgroundColor:'#A9803D', pointRadius:3, fill:true, tension:0.25,
+      borderColor:'#101010', backgroundColor:'rgba(84,87,92,0.15)',
+      pointBackgroundColor:'#54575C', pointRadius:3, fill:true, tension:0.25,
     }]},
     options:{
       responsive:true, maintainAspectRatio:false,
@@ -829,7 +836,7 @@ function afterRenderGraficos(){
         legend:{display:false} },
       scales:{
         x:{ grid:{display:false}, ticks:{font:{family:'Work Sans', size:10.5}} },
-        y:{ grid:{color:'rgba(23,33,46,0.06)'}, ticks:{callback:v=>fmt(v), font:{family:'Work Sans', size:10.5}} }
+        y:{ grid:{color:'rgba(16,16,16,0.06)'}, ticks:{callback:v=>fmt(v), font:{family:'Work Sans', size:10.5}} }
       }
     }
   });
@@ -844,7 +851,7 @@ function generatePDF(ym){
   const t = totalsForMonth(ym);
   const catTotals = categoryTotalsForMonth(ym);
 
-  doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.setTextColor(23,33,46);
+  doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.setTextColor(16,16,16);
   doc.text('Mis Finanzas', 14, 18);
   doc.setFont('helvetica','normal'); doc.setFontSize(12); doc.setTextColor(80,80,80);
   doc.text(`Informe mensual — ${ymLabelFull(ym)}`, 14, 26);
@@ -866,7 +873,7 @@ function generatePDF(ym){
     head: [['Categoría','Presupuestado','Real']],
     body: catRows.length?catRows:[['Sin egresos cargados este mes','—','—']],
     theme: 'grid',
-    headStyles:{ fillColor:[23,33,46], fontSize:9 },
+    headStyles:{ fillColor:[16,16,16], fontSize:9 },
     styles:{ fontSize:9, textColor:[30,34,43] },
   });
 
@@ -881,7 +888,7 @@ function generatePDF(ym){
     head: [['Fecha','Tipo','Categoría','Descripción','Medio','Monto']],
     body: movRows.length?movRows:[['—','—','—','Sin movimientos este mes','—','—']],
     theme: 'striped',
-    headStyles:{ fillColor:[23,33,46], fontSize:9 },
+    headStyles:{ fillColor:[16,16,16], fontSize:9 },
     styles:{ fontSize:8, textColor:[30,34,43] },
   });
 
@@ -1205,6 +1212,15 @@ function removeCat(tipo, cat){
   }
   saveData();
   renderTab('categorias');
+}
+
+/* ============================================================
+   INSTALAR COMO APP (permite "Agregar a pantalla de inicio")
+   ============================================================ */
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(e=>console.error('No se pudo registrar el service worker', e));
+  });
 }
 </script>
 </body>
