@@ -3,6 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+  // Aplica el tema guardado ANTES de pintar la pagina, para que no se vea
+  // un parpadeo del tema equivocado al cargar.
+  (function(){
+    try{
+      var saved = localStorage.getItem('mf-theme');
+      if(saved) document.documentElement.setAttribute('data-theme', saved);
+    }catch(e){}
+  })();
+</script>
 <meta name="theme-color" content="#101010">
 <title>Mis Finanzas</title>
 <link rel="manifest" href="manifest.json">
@@ -31,13 +41,58 @@
     --gold: #AEB2B8;
     --gold-soft: #E4E5E7;
     --ink: #1E222B;
+    --heading: #101010;
     --muted: #767267;
     --border: rgba(16,16,16,0.12);
+    --input-bg: #FFFFFF;
+    --hover-row: rgba(0,0,0,0.025);
+    --track: #EDEAE2;
+    --chart-grid: rgba(16,16,16,0.06);
+    --chart-border: #FFFFFF;
+    --chart-accent: #54575C;
     --green: #3E6B55;
     --green-bg: #E7EFE9;
     --red: #96412E;
     --red-bg: #F4E7E3;
     --radius: 3px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg: #131416;
+      --panel: #1C1D20;
+      --ink: #ECECEE;
+      --heading: #F5F5F6;
+      --muted: #9B9DA3;
+      --border: rgba(255,255,255,0.12);
+      --input-bg: #232428;
+      --hover-row: rgba(255,255,255,0.04);
+      --track: rgba(255,255,255,0.08);
+      --chart-grid: rgba(255,255,255,0.08);
+      --chart-border: #1C1D20;
+      --chart-accent: #B4B7BB;
+      --green: #6FA98A;
+      --green-bg: rgba(111,169,138,0.18);
+      --red: #E08A6D;
+      --red-bg: rgba(224,138,109,0.18);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg: #131416;
+    --panel: #1C1D20;
+    --ink: #ECECEE;
+    --heading: #F5F5F6;
+    --muted: #9B9DA3;
+    --border: rgba(255,255,255,0.12);
+    --input-bg: #232428;
+    --hover-row: rgba(255,255,255,0.04);
+    --track: rgba(255,255,255,0.08);
+    --chart-grid: rgba(255,255,255,0.08);
+    --chart-border: #1C1D20;
+    --chart-accent: #B4B7BB;
+    --green: #6FA98A;
+    --green-bg: rgba(111,169,138,0.18);
+    --red: #E08A6D;
+    --red-bg: rgba(224,138,109,0.18);
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
@@ -85,7 +140,7 @@
   /* ---------- Main ---------- */
   #main{flex:1; padding:34px 40px 60px; max-width:1180px;}
   .page-head{display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:26px; flex-wrap:wrap; gap:12px;}
-  .page-head h2{font-size:26px; font-weight:500; margin:0; color:var(--navy);}
+  .page-head h2{font-size:26px; font-weight:500; margin:0; color:var(--heading);}
   .page-head p{margin:4px 0 0; color:var(--muted); font-size:13px;}
 
   select, input[type=text], input[type=number], input[type=date], input[type=email], input[type=password]{
@@ -94,7 +149,7 @@
     padding:8px 10px;
     border:1px solid var(--border);
     border-radius:var(--radius);
-    background:#fff;
+    background:var(--input-bg);
     color:var(--ink);
     width:100%;
   }
@@ -109,11 +164,11 @@
   }
   .btn-primary{background:var(--navy); color:#fff;}
   .btn-primary:hover{background:var(--navy-2);}
-  .btn-ghost{background:transparent; color:var(--navy); border:1px solid var(--border);}
-  .btn-ghost:hover{border-color:var(--navy);}
+  .btn-ghost{background:transparent; color:var(--heading); border:1px solid var(--border);}
+  .btn-ghost:hover{border-color:var(--heading);}
   .btn-danger-text{all:unset; cursor:pointer; color:var(--red); font-size:12.5px;}
   .btn-danger-text:hover{text-decoration:underline;}
-  .btn-link{all:unset; cursor:pointer; color:var(--navy); font-size:12.5px; text-decoration:underline;}
+  .btn-link{all:unset; cursor:pointer; color:var(--heading); font-size:12.5px; text-decoration:underline;}
 
   /* ---------- Cards / KPIs ---------- */
   .kpi-row{display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:26px;}
@@ -130,7 +185,8 @@
   .value.negative{color:var(--red);}
 
   .panel{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:22px 24px; margin-bottom:22px;}
-  .panel h3{font-size:15px; font-weight:600; margin:0 0 16px; font-family:'Work Sans'; color:var(--navy);}
+  .panel-table{padding:0; overflow:hidden;}
+  .panel h3{font-size:15px; font-weight:600; margin:0 0 16px; font-family:'Work Sans'; color:var(--heading);}
   .charts-row{display:grid; grid-template-columns:1.3fr 1fr; gap:18px;}
   .chart-wrap{position:relative; height:280px;}
 
@@ -141,7 +197,7 @@
     padding:8px 10px; border-bottom:1px solid var(--border);
   }
   tbody td{padding:10px 10px; border-bottom:1px solid var(--border); font-size:13.5px; vertical-align:middle;}
-  tbody tr:hover{background:#FAF9F6;}
+  tbody tr:hover{background:var(--hover-row);}
   .badge{
     display:inline-block; padding:3px 9px; border-radius:20px; font-size:11.5px; font-weight:600;
   }
@@ -151,7 +207,7 @@
   .amount-out{color:var(--red); font-weight:600;}
   .row-actions{display:flex; gap:12px;}
   .empty-state{padding:50px 20px; text-align:center; color:var(--muted);}
-  .empty-state .serif{font-size:19px; color:var(--navy); display:block; margin-bottom:6px;}
+  .empty-state .serif{font-size:19px; color:var(--heading); display:block; margin-bottom:6px;}
 
   .filters-row{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; align-items:flex-end;}
   .field{display:flex; flex-direction:column;}
@@ -163,7 +219,7 @@
   }
   .overlay.show{display:flex;}
   .modal{
-    background:#fff; width:460px; max-width:92vw; border-radius:var(--radius);
+    background:var(--panel); width:460px; max-width:92vw; border-radius:var(--radius);
     padding:26px 28px; max-height:88vh; overflow:auto;
   }
   .modal h3{margin:0 0 18px; font-size:18px; font-family:'Fraunces';}
@@ -172,7 +228,7 @@
   .modal-actions{display:flex; justify-content:flex-end; gap:10px; margin-top:22px;}
 
   /* ---------- Presupuesto ---------- */
-  .prog-bar{height:6px; background:#EDEAE2; border-radius:6px; overflow:hidden; margin-top:6px;}
+  .prog-bar{height:6px; background:var(--track); border-radius:6px; overflow:hidden; margin-top:6px;}
   .prog-fill{height:100%; border-radius:6px;}
 
   /* ---------- Categorías ---------- */
@@ -186,13 +242,13 @@
   .add-cat-row input{flex:1;}
 
   /* ---------- Loading ---------- */
-  #loading{position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:100; font-family:'Fraunces'; color:var(--navy); font-size:16px;}
+  #loading{position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:100; font-family:'Fraunces'; color:var(--heading); font-size:16px;}
 
   /* ---------- Auth screen ---------- */
   #authScreen{position:fixed; inset:0; background:var(--bg); display:none; align-items:center; justify-content:center; z-index:90; padding:20px;}
   #authScreen.show{display:flex;}
   .auth-card{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); width:380px; max-width:100%; padding:32px 28px;}
-  .auth-card h1{font-size:22px; margin:0 0 4px; color:var(--navy);}
+  .auth-card h1{font-size:22px; margin:0 0 4px; color:var(--heading);}
   .auth-card p.sub{color:var(--muted); font-size:13px; margin:0 0 22px;}
   .auth-card .field{margin-bottom:14px;}
   .auth-error{background:var(--red-bg); color:var(--red); padding:9px 12px; border-radius:var(--radius); font-size:12.5px; margin-bottom:14px; display:none;}
@@ -210,13 +266,53 @@
   }
   #toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
 
+  /* ---------- Menú móvil (oculto en escritorio) ---------- */
+  .mobile-menu-btn{display:none;}
+  #mobileMenuBackdrop{display:none;}
+
   @media (max-width: 880px){
     #app{flex-direction:column;}
-    #sidebar{width:100%; flex-direction:row; align-items:center; padding:14px 16px; overflow-x:auto;}
-    #sidebar .brand{border:none; padding:0 16px 0 0; margin:0;}
-    #sidebar .foot{display:none;}
-    nav.tabs{flex-direction:row; padding:0;}
-    #main{padding:22px 16px 50px;}
+    #sidebar{
+      width:100%; flex-direction:row; align-items:center; justify-content:space-between;
+      padding:12px 16px; position:fixed; top:0; left:0; right:0; z-index:60;
+    }
+    #sidebar .brand{border:none; padding:0; margin:0;}
+    #sidebar .brand span{display:none;}
+
+    .mobile-menu-btn{
+      all:unset; display:flex; align-items:center; justify-content:center;
+      width:34px; height:34px; color:#fff; font-size:22px; line-height:1; cursor:pointer; border-radius:var(--radius);
+    }
+    .mobile-menu-btn:active{background:rgba(255,255,255,0.1);}
+
+    nav.tabs{
+      position:fixed; bottom:0; left:0; right:0; z-index:60;
+      flex-direction:row; padding:6px 4px calc(6px + env(safe-area-inset-bottom));
+      justify-content:space-around; gap:0;
+      background:var(--navy); border-top:1px solid rgba(255,255,255,0.08);
+    }
+    nav.tabs button{
+      flex:1; justify-content:center; text-align:center; white-space:normal;
+      padding:8px 2px; font-size:10px; line-height:1.2; border-radius:var(--radius); gap:0;
+    }
+    nav.tabs button.active{box-shadow:none; background:rgba(255,255,255,0.1);}
+
+    #sidebar .foot{
+      display:none; position:fixed; top:60px; right:12px; z-index:70;
+      background:var(--navy-2); border-radius:var(--radius); padding:16px 18px;
+      flex-direction:column; align-items:flex-start; gap:10px; min-width:210px;
+      box-shadow:0 10px 30px rgba(0,0,0,0.35);
+    }
+    #sidebar .foot p{margin:0;}
+    #sidebar .foot button{margin-bottom:0;}
+    body.mobile-menu-open #sidebar .foot{display:flex;}
+    body.mobile-menu-open #mobileMenuBackdrop{
+      display:block; position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:65;
+    }
+
+    #main{padding:78px 16px 90px;}
+    .panel-table{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+    .panel-table table{min-width:640px;}
     .kpi-row{grid-template-columns:1fr 1fr;}
     .kpi.hero{grid-column:span 2;}
     .charts-row{grid-template-columns:1fr;}
@@ -256,6 +352,7 @@
       <h1>Mis Finanzas</h1>
       <span>Pesos uruguayos · $UY</span>
     </div>
+    <button id="btnMobileMenu" class="mobile-menu-btn" onclick="toggleMobileMenu()" aria-label="Más opciones">⋮</button>
     <nav class="tabs" id="nav">
       <button data-tab="resumen" class="active">Resumen</button>
       <button data-tab="movimientos">Movimientos</button>
@@ -265,12 +362,14 @@
     </nav>
     <div class="foot">
       <p id="userEmailLabel">Conectado</p>
-      <button onclick="exportData()">Exportar copia (.json)</button>
-      <button onclick="document.getElementById('importFile').click()">Importar copia (.json)</button>
-      <button onclick="doLogout()">Cerrar sesión</button>
+      <button id="btnThemeToggle" onclick="toggleTheme()">Modo oscuro</button>
+      <button onclick="document.body.classList.remove('mobile-menu-open'); exportData()">Exportar copia (.json)</button>
+      <button onclick="document.body.classList.remove('mobile-menu-open'); document.getElementById('importFile').click()">Importar copia (.json)</button>
+      <button onclick="document.body.classList.remove('mobile-menu-open'); doLogout()">Cerrar sesión</button>
       <input type="file" id="importFile" accept="application/json" style="display:none;">
     </div>
   </aside>
+  <div id="mobileMenuBackdrop" onclick="toggleMobileMenu()"></div>
 
   <main id="main"></main>
 </div>
@@ -396,6 +495,31 @@ function doLogout(){
   auth.signOut();
 }
 
+function toggleMobileMenu(){
+  document.body.classList.toggle('mobile-menu-open');
+}
+
+/* ============================================================
+   MODO CLARO / OSCURO
+   ============================================================ */
+function applyThemeButtonLabel(){
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark' ||
+    (!document.documentElement.hasAttribute('data-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  document.getElementById('btnThemeToggle').textContent = isDark ? 'Modo claro' : 'Modo oscuro';
+}
+
+function toggleTheme(){
+  const isDarkNow = document.documentElement.getAttribute('data-theme') === 'dark' ||
+    (!document.documentElement.hasAttribute('data-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const next = isDarkNow ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  try{ localStorage.setItem('mf-theme', next); }catch(e){}
+  applyThemeButtonLabel();
+  document.body.classList.remove('mobile-menu-open');
+  if(currentTab) renderTab(currentTab); // recrea los gráficos con los colores del nuevo tema
+}
+applyThemeButtonLabel();
+
 auth.onAuthStateChanged(user=>{
   currentUser = user;
   if(user){
@@ -472,6 +596,26 @@ function toast(msg){
 function fmt(n){
   n = Number(n)||0;
   return '$ ' + n.toLocaleString('es-UY', {maximumFractionDigits:0});
+}
+
+/* ============================================================
+   COLORES DE GRÁFICOS SEGÚN EL TEMA (claro/oscuro)
+   ============================================================ */
+function isDarkTheme(){
+  return document.documentElement.getAttribute('data-theme') === 'dark' ||
+    (!document.documentElement.hasAttribute('data-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+}
+function cssVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+function applyChartTheme(){
+  Chart.defaults.color = cssVar('--muted');
+  Chart.defaults.borderColor = cssVar('--chart-grid');
+}
+
+function categoryPalette(){
+  return isDarkTheme()
+    ? ['#F2F2F2','#3A3A3A','#C7C9CC','#5C5C5C','#E8E9EB','#7A7D82','#B4B7BB','#4A4A4A','#9DA0A5','#2E2E2E','#D6D8DB','#6E7176','#EDEDEE','#A3A6AB']
+    : ['#101010','#C7C9CC','#4A4A4A','#D6D8DB','#6E7176','#9DA0A5','#2E2E2E','#B4B7BB','#565A5E','#8B8E92','#3A3D42','#A3A6AB','#1D1D1D','#C0C2C6'];
 }
 
 function exportData(){
@@ -675,6 +819,7 @@ function afterRenderResumen(){
     renderTab('resumen');
   });
 
+  applyChartTheme();
   const keys = last12MonthKeys();
   const ingSeries = keys.map(k=>totalsForMonth(k).ing);
   const egrSeries = keys.map(k=>totalsForMonth(k).egr);
@@ -684,22 +829,22 @@ function afterRenderResumen(){
   chartBarInstance = new Chart(document.getElementById('chartBar'), {
     type:'bar',
     data:{ labels, datasets:[
-      {label:'Ingresos', data:ingSeries, backgroundColor:'#3E6B55', borderRadius:2, maxBarThickness:22},
-      {label:'Egresos', data:egrSeries, backgroundColor:'#96412E', borderRadius:2, maxBarThickness:22},
+      {label:'Ingresos', data:ingSeries, backgroundColor:cssVar('--green'), borderRadius:2, maxBarThickness:22},
+      {label:'Egresos', data:egrSeries, backgroundColor:cssVar('--red'), borderRadius:2, maxBarThickness:22},
     ]},
     options:{
       responsive:true, maintainAspectRatio:false,
       plugins:{ legend:{position:'bottom', labels:{boxWidth:10, font:{family:'Work Sans', size:11}}} },
       scales:{
         x:{ grid:{display:false}, ticks:{font:{family:'Work Sans', size:10.5}} },
-        y:{ grid:{color:'rgba(16,16,16,0.06)'}, ticks:{callback:v=>fmt(v), font:{family:'Work Sans', size:10.5}} }
+        y:{ grid:{color:cssVar('--chart-grid')}, ticks:{callback:v=>fmt(v), font:{family:'Work Sans', size:10.5}} }
       }
     }
   });
 
   const catTotals = categoryTotalsForMonth(selectedResumenYM);
   const entries = Object.entries(catTotals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
-  const palette = ['#101010','#C7C9CC','#4A4A4A','#D6D8DB','#6E7176','#9DA0A5','#2E2E2E','#B4B7BB','#565A5E','#8B8E92','#3A3D42','#A3A6AB','#1D1D1D','#C0C2C6'];
+  const palette = categoryPalette();
 
   if(chartPieInstance) chartPieInstance.destroy();
   if(entries.length===0){
@@ -707,7 +852,7 @@ function afterRenderResumen(){
   } else {
     chartPieInstance = new Chart(document.getElementById('chartPie'), {
       type:'doughnut',
-      data:{ labels:entries.map(e=>e[0]), datasets:[{ data:entries.map(e=>e[1]), backgroundColor:palette, borderWidth:2, borderColor:'#fff' }] },
+      data:{ labels:entries.map(e=>e[0]), datasets:[{ data:entries.map(e=>e[1]), backgroundColor:palette, borderWidth:2, borderColor:cssVar('--chart-border') }] },
       options:{
         responsive:true, maintainAspectRatio:false,
         plugins:{ legend:{position:'right', labels:{boxWidth:9, font:{family:'Work Sans', size:10.5}, padding:8}} }
@@ -773,6 +918,7 @@ function afterRenderGraficos(){
     renderTab('graficos');
   });
   document.getElementById('btnPdfMes').addEventListener('click', ()=>generatePDF(selectedGraficosMesYM));
+  applyChartTheme();
 
   // --- Gráfico mensual: gasto por categoría (barras horizontales) ---
   const catTotals = categoryTotalsForMonth(selectedGraficosMesYM);
@@ -783,12 +929,12 @@ function afterRenderGraficos(){
   } else {
     chartMesCategoriaInstance = new Chart(document.getElementById('chartMesCategoria'), {
       type:'bar',
-      data:{ labels:entries.map(e=>e[0]), datasets:[{ label:'Gasto', data:entries.map(e=>e[1]), backgroundColor:'#54575C', borderRadius:2 }] },
+      data:{ labels:entries.map(e=>e[0]), datasets:[{ label:'Gasto', data:entries.map(e=>e[1]), backgroundColor:cssVar('--chart-accent'), borderRadius:2 }] },
       options:{
         indexAxis:'y', responsive:true, maintainAspectRatio:false,
         plugins:{ legend:{display:false} },
         scales:{
-          x:{ grid:{color:'rgba(16,16,16,0.06)'}, ticks:{callback:v=>fmt(v), font:{family:'Work Sans', size:10.5}} },
+          x:{ grid:{color:cssVar('--chart-grid')}, ticks:{callback:v=>fmt(v), font:{family:'Work Sans', size:10.5}} },
           y:{ grid:{display:false}, ticks:{font:{family:'Work Sans', size:11}} }
         }
       }
@@ -805,16 +951,16 @@ function afterRenderGraficos(){
   chartAnioBarrasInstance = new Chart(document.getElementById('chartAnioBarras'), {
     type:'bar',
     data:{ labels, datasets:[
-      {label:'Ingresos', data:ingSeries, backgroundColor:'#3E6B55', borderRadius:2, maxBarThickness:20},
-      {label:'Egresos', data:egrSeries, backgroundColor:'#96412E', borderRadius:2, maxBarThickness:20},
+      {label:'Ingresos', data:ingSeries, backgroundColor:cssVar('--green'), borderRadius:2, maxBarThickness:20},
+      {label:'Egresos', data:egrSeries, backgroundColor:cssVar('--red'), borderRadius:2, maxBarThickness:20},
     ]},
     options:{
       responsive:true, maintainAspectRatio:false,
-      plugins:{ title:{display:true, text:'Ingresos vs egresos por mes', font:{family:'Work Sans', size:12, weight:'600'}, color:'#1E222B', padding:{bottom:10}},
+      plugins:{ title:{display:true, text:'Ingresos vs egresos por mes', font:{family:'Work Sans', size:12, weight:'600'}, color:cssVar('--heading'), padding:{bottom:10}},
         legend:{position:'bottom', labels:{boxWidth:10, font:{family:'Work Sans', size:11}}} },
       scales:{
         x:{ grid:{display:false}, ticks:{font:{family:'Work Sans', size:10.5}} },
-        y:{ grid:{color:'rgba(16,16,16,0.06)'}, ticks:{callback:v=>fmt(v), font:{family:'Work Sans', size:10.5}} }
+        y:{ grid:{color:cssVar('--chart-grid')}, ticks:{callback:v=>fmt(v), font:{family:'Work Sans', size:10.5}} }
       }
     }
   });
@@ -827,16 +973,16 @@ function afterRenderGraficos(){
     type:'line',
     data:{ labels, datasets:[{
       label:'Balance acumulado', data:balAcumSeries,
-      borderColor:'#101010', backgroundColor:'rgba(84,87,92,0.15)',
-      pointBackgroundColor:'#54575C', pointRadius:3, fill:true, tension:0.25,
+      borderColor:cssVar('--chart-accent'), backgroundColor:'rgba(84,87,92,0.15)',
+      pointBackgroundColor:cssVar('--chart-accent'), pointRadius:3, fill:true, tension:0.25,
     }]},
     options:{
       responsive:true, maintainAspectRatio:false,
-      plugins:{ title:{display:true, text:'Balance acumulado en el año', font:{family:'Work Sans', size:12, weight:'600'}, color:'#1E222B', padding:{bottom:10}},
+      plugins:{ title:{display:true, text:'Balance acumulado en el año', font:{family:'Work Sans', size:12, weight:'600'}, color:cssVar('--heading'), padding:{bottom:10}},
         legend:{display:false} },
       scales:{
         x:{ grid:{display:false}, ticks:{font:{family:'Work Sans', size:10.5}} },
-        y:{ grid:{color:'rgba(16,16,16,0.06)'}, ticks:{callback:v=>fmt(v), font:{family:'Work Sans', size:10.5}} }
+        y:{ grid:{color:cssVar('--chart-grid')}, ticks:{callback:v=>fmt(v), font:{family:'Work Sans', size:10.5}} }
       }
     }
   });
@@ -939,7 +1085,7 @@ function viewMovimientos(){
       </div>
     </div>
 
-    <div class="panel" style="padding:0; overflow:hidden;">
+    <div class="panel panel-table">
       ${rows.length===0 ? `
         <div class="empty-state">
           <span class="serif">Todavía no hay movimientos acá</span>
@@ -1094,7 +1240,7 @@ function viewPresupuesto(){
       </div>
     </div>
 
-    <div class="panel" style="padding:0; overflow:hidden;">
+    <div class="panel panel-table">
       <table>
         <thead><tr>
           <th>Categoría</th><th style="text-align:right;">Presupuestado</th><th style="text-align:right;">Real</th><th style="text-align:right;">Diferencia</th><th style="width:160px;">% usado</th>
