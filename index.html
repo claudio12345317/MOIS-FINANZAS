@@ -25,9 +25,7 @@
 <meta name="apple-mobile-web-app-title" content="Finanzas">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<!-- Firebase (sincroniza tus datos entre el teléfono y la computadora) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script><!-- Firebase (sincroniza tus datos entre el teléfono y la computadora) -->
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
@@ -388,7 +386,7 @@
     <div class="auth-error" id="lockError"></div>
     <div class="field">
       <label>PIN</label>
-      <input type="password" id="lockPin" inputmode="numeric" maxlength="4" autocomplete="off">
+      <input type="password" id="lockPin" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" oninput="this.value=this.value.replace(/\D/g,'').slice(0,4)">
     </div>
     <div class="auth-actions">
       <button class="btn btn-primary" id="btnUnlock">Desbloquear</button>
@@ -604,6 +602,8 @@ function showLockScreenIfNeeded(){
 document.addEventListener('visibilitychange', ()=>{
   if(document.visibilityState==='visible' && currentUser) showLockScreenIfNeeded();
 });
+window.addEventListener('pageshow', ()=>{ if(currentUser) showLockScreenIfNeeded(); });
+window.addEventListener('focus', ()=>{ if(currentUser) showLockScreenIfNeeded(); });
 
 document.getElementById('btnUnlock').addEventListener('click', unlockWithPin);
 document.getElementById('lockPin').addEventListener('keydown', e=>{ if(e.key==='Enter') unlockWithPin(); });
@@ -612,15 +612,20 @@ async function unlockWithPin(){
   const pin = document.getElementById('lockPin').value;
   const err = document.getElementById('lockError');
   if(pin.length!==4){ err.textContent='El PIN tiene 4 dígitos.'; err.classList.add('show'); return; }
-  const hash = await hashPin(pin);
-  if(hash===getPinHash()){
-    document.getElementById('lockScreen').classList.remove('show');
-    document.getElementById('lockPin').value='';
-    err.classList.remove('show');
-  } else {
-    err.textContent='PIN incorrecto.';
+  try{
+    const hash = await hashPin(pin);
+    if(hash===getPinHash()){
+      document.getElementById('lockScreen').classList.remove('show');
+      document.getElementById('lockPin').value='';
+      err.classList.remove('show');
+    } else {
+      err.textContent='PIN incorrecto.';
+      err.classList.add('show');
+      document.getElementById('lockPin').value='';
+    }
+  }catch(e){
+    err.textContent='No se pudo verificar el PIN en este navegador. Probá recargar la app.';
     err.classList.add('show');
-    document.getElementById('lockPin').value='';
   }
 }
 
@@ -634,15 +639,15 @@ function openPinForm(){
       ${tienePin?`
       <div class="field full">
         <label>PIN actual</label>
-        <input type="password" id="pPinActual" inputmode="numeric" maxlength="4" style="letter-spacing:6px;">
+        <input type="password" id="pPinActual" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" style="letter-spacing:6px;" oninput="this.value=this.value.replace(/\D/g,'').slice(0,4)">
       </div>`:''}
       <div class="field">
         <label>Nuevo PIN (4 dígitos)</label>
-        <input type="password" id="pPinNuevo" inputmode="numeric" maxlength="4" style="letter-spacing:6px;">
+        <input type="password" id="pPinNuevo" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" style="letter-spacing:6px;" oninput="this.value=this.value.replace(/\D/g,'').slice(0,4)">
       </div>
       <div class="field">
         <label>Confirmar nuevo PIN</label>
-        <input type="password" id="pPinConfirmar" inputmode="numeric" maxlength="4" style="letter-spacing:6px;">
+        <input type="password" id="pPinConfirmar" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" style="letter-spacing:6px;" oninput="this.value=this.value.replace(/\D/g,'').slice(0,4)">
       </div>
     </div>
     <div class="modal-actions" style="justify-content:space-between;">
@@ -657,40 +662,56 @@ function openPinForm(){
 }
 
 async function savePinForm(){
-  const tienePin = !!getPinHash();
   const err = document.getElementById('pinFormError');
   err.classList.remove('show');
-  if(tienePin){
-    const actual = document.getElementById('pPinActual').value;
-    if(await hashPin(actual) !== getPinHash()){
-      err.textContent='El PIN actual no es correcto.'; err.classList.add('show'); return;
+  try{
+    const tienePin = !!getPinHash();
+    if(tienePin){
+      const actual = document.getElementById('pPinActual').value;
+      if(await hashPin(actual) !== getPinHash()){
+        err.textContent='El PIN actual no es correcto.'; err.classList.add('show'); return;
+      }
     }
+    const nuevo = document.getElementById('pPinNuevo').value;
+    const confirmar = document.getElementById('pPinConfirmar').value;
+    if(nuevo.length!==4 || !/^\d{4}$/.test(nuevo)){
+      err.textContent='El nuevo PIN tiene que ser de 4 números.'; err.classList.add('show'); return;
+    }
+    if(nuevo!==confirmar){
+      err.textContent='Los PIN no coinciden.'; err.classList.add('show'); return;
+    }
+    localStorage.setItem('mf-pin-hash', await hashPin(nuevo));
+    if(localStorage.getItem('mf-pin-hash') !== await hashPin(nuevo)){
+      err.textContent='No se pudo guardar el PIN en este navegador (¿modo privado?). Probá sin navegación privada.';
+      err.classList.add('show'); return;
+    }
+    applyPinMenuLabel();
+    closeModal();
+    toast('PIN guardado');
+  }catch(e){
+    console.error('Error guardando PIN', e);
+    err.textContent='No se pudo guardar el PIN en este navegador.';
+    err.classList.add('show');
   }
-  const nuevo = document.getElementById('pPinNuevo').value;
-  const confirmar = document.getElementById('pPinConfirmar').value;
-  if(nuevo.length!==4 || !/^\d{4}$/.test(nuevo)){
-    err.textContent='El nuevo PIN tiene que ser de 4 números.'; err.classList.add('show'); return;
-  }
-  if(nuevo!==confirmar){
-    err.textContent='Los PIN no coinciden.'; err.classList.add('show'); return;
-  }
-  localStorage.setItem('mf-pin-hash', await hashPin(nuevo));
-  applyPinMenuLabel();
-  closeModal();
-  toast('PIN guardado');
 }
 
 async function removePin(){
-  const actual = document.getElementById('pPinActual')?.value || '';
-  if(await hashPin(actual) !== getPinHash()){
-    const err = document.getElementById('pinFormError');
-    err.textContent='El PIN actual no es correcto.'; err.classList.add('show'); return;
+  const err = document.getElementById('pinFormError');
+  try{
+    const actual = document.getElementById('pPinActual')?.value || '';
+    if(await hashPin(actual) !== getPinHash()){
+      err.textContent='El PIN actual no es correcto.'; err.classList.add('show'); return;
+    }
+    if(!confirm('¿Quitar el PIN de este dispositivo?')) return;
+    localStorage.removeItem('mf-pin-hash');
+    applyPinMenuLabel();
+    closeModal();
+    toast('PIN eliminado');
+  }catch(e){
+    console.error('Error quitando PIN', e);
+    err.textContent='No se pudo quitar el PIN en este navegador.';
+    err.classList.add('show');
   }
-  if(!confirm('¿Quitar el PIN de este dispositivo?')) return;
-  localStorage.removeItem('mf-pin-hash');
-  applyPinMenuLabel();
-  closeModal();
-  toast('PIN eliminado');
 }
 
 auth.onAuthStateChanged(user=>{
@@ -1362,31 +1383,98 @@ function afterRenderGraficos(){
 /* ============================================================
    EXPORTAR PDF DEL MES
    ============================================================ */
+function tempChartImage(config, width, height){
+  const canvas = document.createElement('canvas');
+  canvas.width = width; canvas.height = height;
+  canvas.style.position = 'fixed'; canvas.style.left = '-99999px'; canvas.style.top = '0';
+  document.body.appendChild(canvas);
+  config.options = Object.assign({ animation:false, responsive:false }, config.options||{});
+  const chart = new Chart(canvas, config);
+  const img = chart.toBase64Image('image/png', 1);
+  chart.destroy();
+  document.body.removeChild(canvas);
+  return img;
+}
+
 function generatePDF(ym){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
   const t = totalsForMonth(ym);
   const catTotals = categoryTotalsForMonth(ym);
+  const PAGE_W = 210, MARGIN = 14, CONTENT_W = PAGE_W - MARGIN*2;
 
   doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.setTextColor(16,16,16);
-  doc.text('Mis Finanzas', 14, 18);
+  doc.text('Mis Finanzas', MARGIN, 18);
   doc.setFont('helvetica','normal'); doc.setFontSize(12); doc.setTextColor(80,80,80);
-  doc.text(`Informe mensual — ${ymLabelFull(ym)}`, 14, 26);
-  doc.setDrawColor(210); doc.line(14, 31, 196, 31);
+  doc.text(`Informe mensual — ${ymLabelFull(ym)}`, MARGIN, 26);
+  doc.setDrawColor(210); doc.line(MARGIN, 31, PAGE_W-MARGIN, 31);
 
   doc.setFontSize(11); doc.setTextColor(30,34,43);
-  doc.text(`Ingresos: ${fmt(t.ing)}`, 14, 41);
-  doc.text(`Egresos: ${fmt(t.egr)}`, 14, 48);
+  doc.text(`Ingresos: ${fmt(t.ing)}`, MARGIN, 41);
+  doc.text(`Egresos: ${fmt(t.egr)}`, MARGIN, 48);
   doc.setFont('helvetica','bold');
-  doc.text(`Balance: ${fmt(t.bal)}`, 14, 55);
+  doc.text(`Balance: ${fmt(t.bal)}`, MARGIN, 55);
   doc.setFont('helvetica','normal');
 
+  let y = 63;
+  if(t.ingUSD || t.egrUSD){
+    doc.setFontSize(10); doc.setTextColor(80,80,80);
+    doc.text(`En dólares — Ingresos: ${fmt(t.ingUSD,'USD')}   Egresos: ${fmt(t.egrUSD,'USD')}   Balance: ${fmt(t.balUSD,'USD')}`, MARGIN, y);
+    doc.setTextColor(30,34,43);
+    y += 10;
+  }
+
+  // --- Gráfico: ingresos vs egresos, últimos 12 meses ---
+  const keys = last12MonthKeys();
+  const barImg = tempChartImage({
+    type:'bar',
+    data:{ labels: keys.map(ymLabel), datasets:[
+      {label:'Ingresos', data:keys.map(k=>totalsForMonth(k).ing), backgroundColor:'#3E6B55'},
+      {label:'Egresos', data:keys.map(k=>totalsForMonth(k).egr), backgroundColor:'#96412E'},
+    ]},
+    options:{
+      plugins:{ legend:{position:'bottom', labels:{color:'#1E222B'}} },
+      scales:{
+        x:{ grid:{display:false}, ticks:{color:'#1E222B'} },
+        y:{ grid:{color:'rgba(0,0,0,0.08)'}, ticks:{color:'#1E222B'} }
+      }
+    }
+  }, 900, 420);
+  doc.setFontSize(10.5); doc.setFont('helvetica','bold');
+  doc.text('Ingresos vs egresos — últimos 12 meses', MARGIN, y);
+  doc.setFont('helvetica','normal');
+  const barH = CONTENT_W * (420/900);
+  doc.addImage(barImg, 'PNG', MARGIN, y+4, CONTENT_W, barH);
+  y += 4 + barH + 10;
+
+  // --- Gráfico: gastos por categoría del mes ---
+  const entries = Object.entries(catTotals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+  if(entries.length){
+    const palette = ['#101010','#C7C9CC','#4A4A4A','#D6D8DB','#6E7176','#9DA0A5','#2E2E2E','#B4B7BB','#565A5E','#8B8E92','#3A3D42','#A3A6AB','#1D1D1D','#C0C2C6'];
+    const pieImg = tempChartImage({
+      type:'doughnut',
+      data:{ labels:entries.map(e=>e[0]), datasets:[{ data:entries.map(e=>e[1]), backgroundColor:palette, borderWidth:2, borderColor:'#fff' }] },
+      options:{ plugins:{ legend:{position:'right', labels:{color:'#1E222B', boxWidth:9, font:{size:9}}} } }
+    }, 900, 480);
+    doc.setFontSize(10.5); doc.setFont('helvetica','bold');
+    doc.text(`Gastos por categoría — ${ymLabel(ym)}`, MARGIN, y);
+    doc.setFont('helvetica','normal');
+    const pieH = CONTENT_W * (480/900);
+    doc.addImage(pieImg, 'PNG', MARGIN, y+4, CONTENT_W, pieH);
+    y += 4 + pieH + 10;
+  }
+
+  // --- Tabla: presupuesto vs real ---
+  doc.addPage();
   const catRows = state.categoriasEgreso
     .map(c=>[c, fmt(state.presupuesto[c]||0), fmt(catTotals[c]||0)])
     .filter((row,i)=> (state.presupuesto[state.categoriasEgreso[i]]||0)>0 || (catTotals[state.categoriasEgreso[i]]||0)>0);
 
+  doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(16,16,16);
+  doc.text(`Presupuesto — ${ymLabelFull(ym)}`, MARGIN, 18);
+
   doc.autoTable({
-    startY: 63,
+    startY: 24,
     head: [['Categoría','Presupuestado','Real']],
     body: catRows.length?catRows:[['Sin egresos cargados este mes','—','—']],
     theme: 'grid',
@@ -1394,14 +1482,18 @@ function generatePDF(ym){
     styles:{ fontSize:9, textColor:[30,34,43] },
   });
 
+  // --- Tabla: todos los movimientos del mes ---
   const movs = state.movimientos.filter(m=>monthKey(m.fecha)===ym).sort((a,b)=>a.fecha.localeCompare(b.fecha));
   const movRows = movs.map(m=>[
     formatFecha(m.fecha), m.tipo, m.categoria, m.descripcion||'—', m.medio,
     (m.tipo==='Ingreso'?'+ ':'- ')+fmt(m.monto, m.moneda)
   ]);
 
+  doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(16,16,16);
+  doc.text(`Movimientos — ${ymLabelFull(ym)}`, MARGIN, doc.lastAutoTable.finalY + 14);
+
   doc.autoTable({
-    startY: doc.lastAutoTable.finalY + 12,
+    startY: doc.lastAutoTable.finalY + 20,
     head: [['Fecha','Tipo','Categoría','Descripción','Medio','Monto']],
     body: movRows.length?movRows:[['—','—','—','Sin movimientos este mes','—','—']],
     theme: 'striped',
@@ -1414,42 +1506,16 @@ function generatePDF(ym){
 }
 
 /* ============================================================
-   EXPORTAR A EXCEL
-   ============================================================ */
-function exportExcel(){
-  const rows = lastMovRows.length ? lastMovRows : state.movimientos;
-  if(rows.length===0){ toast('No hay movimientos para exportar'); return; }
-  const data = rows.slice().sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(m=>({
-    Fecha: formatFecha(m.fecha),
-    Tipo: m.tipo,
-    Categoría: m.categoria,
-    Descripción: m.descripcion || '',
-    Medio: m.medio,
-    Moneda: m.moneda==='USD' ? 'USD' : 'UYU',
-    Monto: Number(m.monto),
-    Notas: m.notas || '',
-  }));
-  const ws = XLSX.utils.json_to_sheet(data);
-  ws['!cols'] = [{wch:11},{wch:9},{wch:22},{wch:30},{wch:13},{wch:8},{wch:12},{wch:26}];
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Movimientos');
-  XLSX.writeFile(wb, `mis-finanzas-movimientos.xlsx`);
-  toast('Excel descargado');
-}
-
-/* ============================================================
    VISTA: MOVIMIENTOS
    ============================================================ */
 let filtroMes = 'todos', filtroTipo='todos', filtroTexto='';
 
-let lastMovRows = [];
 function viewMovimientos(){
   const keys = [...new Set(state.movimientos.map(m=>monthKey(m.fecha)))].sort().reverse();
   let rows = state.movimientos.slice().sort((a,b)=> b.fecha.localeCompare(a.fecha));
   if(filtroMes!=='todos') rows = rows.filter(m=>monthKey(m.fecha)===filtroMes);
   if(filtroTipo!=='todos') rows = rows.filter(m=>m.tipo===filtroTipo);
   if(filtroTexto.trim()) rows = rows.filter(m => (m.descripcion+' '+m.categoria).toLowerCase().includes(filtroTexto.toLowerCase()));
-  lastMovRows = rows;
 
   return `
     <div class="page-head">
@@ -1458,7 +1524,7 @@ function viewMovimientos(){
         <p>Todo lo que entra y sale, en un solo lugar.</p>
       </div>
       <div style="display:flex; gap:10px;">
-        <button class="btn btn-ghost" onclick="exportExcel()">Exportar a Excel</button>
+        <button class="btn btn-ghost" onclick="generatePDF(filtroMes!=='todos'?filtroMes:currentYM())">Descargar informe (PDF)</button>
         <button class="btn btn-primary" id="btnNuevo">+ Nuevo movimiento</button>
       </div>
     </div>

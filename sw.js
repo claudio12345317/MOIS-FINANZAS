@@ -2,7 +2,12 @@
 // para que instale como app e inicie mas rapido. Nunca intercepta pedidos
 // a otros dominios (Firebase, Google Fonts, Chart.js, etc.) para no romper
 // el login ni la sincronizacion en tiempo real.
-const CACHE_NAME = 'mis-finanzas-shell-v1';
+//
+// Estrategia: red primero, cache solo como respaldo sin conexion. Asi cada
+// vez que se abre la app con internet, se ve siempre la ultima version
+// publicada (antes quedaba pegada a lo guardado y tardaba dos aperturas
+// en actualizarse).
+const CACHE_NAME = 'mis-finanzas-shell-v2';
 const SHELL_FILES = [
   './',
   './index.html',
@@ -35,12 +40,9 @@ self.addEventListener('fetch', (event) => {
   if (new URL(req.url).origin !== self.location.origin) return; // deja pasar Firebase/CDN sin tocar
 
   event.respondWith(
-    caches.match(req).then((cached) => {
-      const network = fetch(req).then((res) => {
-        caches.open(CACHE_NAME).then((cache) => cache.put(req, res.clone()));
-        return res;
-      }).catch(() => cached);
-      return cached || network;
-    })
+    fetch(req).then((res) => {
+      caches.open(CACHE_NAME).then((cache) => cache.put(req, res.clone()));
+      return res;
+    }).catch(() => caches.match(req))
   );
 });
